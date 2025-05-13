@@ -2,8 +2,9 @@ import os
 import csv
 import numpy as np
 import cvxpy as cp
-from TrafficEnv import TrafficEnv
+from GymTrafficEnv import GymTrafficEnv
 from Simulation import safe_render, LOG_DIR, max_steps_per_episode
+
 
 class MPCController:
     def __init__(self, H=12, lam=1.0, log_dir=LOG_DIR, max_steps=max_steps_per_episode):
@@ -35,7 +36,7 @@ class MPCController:
         return U.value[0]
 
     def run_simulation(self, sumo_config, log_filename):
-        env = TrafficEnv(sumo_config)
+        env = GymTrafficEnv(sumo_config)
         safe_render(env)
 
         state = env.reset()
@@ -59,3 +60,40 @@ class MPCController:
                 step += 1
 
         env.close()
+
+    def evaluate(self, sumo_config, episodes=10, max_steps=None):
+        """
+        Évalue le contrôleur MPC en utilisant l'API Gym.
+        """
+        from GymTrafficEnv import GymTrafficEnv
+        import numpy as np
+
+        env = GymTrafficEnv(sumo_config)
+        total_rewards = []
+
+        if max_steps is None:
+            max_steps = self.max_steps
+
+        for ep in range(episodes):
+            obs = env.reset()
+            done = False
+            step = 0
+            q = np.array(obs, dtype=float)
+            ep_reward = 0.0
+
+            while not done and step < max_steps:
+                predicted_arrivals = np.random.poisson(lam=2, size=(self.H, q.shape[0]))
+                service_matrix = np.eye(q.shape[0])
+                u0 = self.solve(q, predicted_arrivals, service_matrix)
+                action = int(np.argmax(u0))
+
+                next_obs, reward, done, _ = env.step(action)
+                ep_reward += reward
+                q = np.array(next_obs, dtype=float)
+                step += 1
+
+            total_rewards.append(ep_reward)
+            print(f"Épisode {ep+1}: reward = {ep_reward:.2f}")
+
+        env.close()
+        print(f"\nRécompense moyenne MPC sur {episodes} épisodes : {np.mean(total_rewards):.2f}")

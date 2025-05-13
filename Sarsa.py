@@ -1,74 +1,49 @@
+import numpy as np
 import random
 from collections import defaultdict
 
-class SarsaAgent:
-    def __init__(self, actions, alpha=0.1, gamma=0.99, epsilon_start=1.0, epsilon_end=0.05, epsilon_decay_steps=3000):
-        """
-        actions : liste ou iterable des actions possibles
-        alpha  : taux d'apprentissage
-        gamma  : facteur d'actualisation
-        epsilon_* : paramètres de l'exploration ε-greedy
-        """
-        self.actions = list(actions)
+class SARSAAgent:
+    def __init__(self, env, alpha=0.1, gamma=0.99, epsilon=0.1, bins=(10,10,10,10)):
+        self.env = env
         self.alpha = alpha
         self.gamma = gamma
+        self.epsilon = epsilon
+        # nombre d’actions à partir de l’espace Gym
+        self.n_actions = env.action_space.n
+        # Q-table indexée par états discrétisés (ici, tuple d’indices)
+        self.Q = defaultdict(lambda: np.zeros(self.n_actions))
+        # bornes pour discrétiser l’observation continue
+        self.obs_low  = env.observation_space.low
+        self.obs_high = env.observation_space.high
+        self.bins = bins
 
-        # Q-table par défaut à 0
-        self.Q = defaultdict(float)  # clé = (state, action)
-
-        # paramètres ε-greedy
-        self.epsilon = epsilon_start
-        self.epsilon_start = epsilon_start
-        self.epsilon_end = epsilon_end
-        self.epsilon_decay = (epsilon_start - epsilon_end) / epsilon_decay_steps
+    def discretize(self, obs):
+        """Convertit obs continu en tuple d’indices."""
+        ratios = (obs - self.obs_low) / (self.obs_high - self.obs_low)
+        indices = (ratios * (np.array(self.bins) - 1)).astype(int)
+        return tuple(np.clip(indices, 0, np.array(self.bins)-1))
 
     def choose_action(self, state):
-        """ε-greedy : choisir random avec prob ε, sinon argmax_a Q[state,a]"""
         if random.random() < self.epsilon:
-            return random.choice(self.actions)
-        # Sinon choix du meilleur
-        q_vals = [self.Q[(state, a)] for a in self.actions]
-        max_q = max(q_vals)
-        # en cas d'égalité on randomise entre les meilleurs
-        best_actions = [a for a, q in zip(self.actions, q_vals) if q == max_q]
-        return random.choice(best_actions)
+            return self.env.action_space.sample()
+        return int(np.argmax(self.Q[state]))
 
-    def update_epsilon(self):
-        """Décroissance linéaire d’ε jusqu'à ε_end"""
-        if self.epsilon > self.epsilon_end:
-            self.epsilon -= self.epsilon_decay
-
-    def learn(self, state, action, reward, next_state, next_action):
-        """
-        Mise à jour SARSA :
-        Q(s,a) ← Q(s,a) + α [ r + γ Q(s',a') − Q(s,a) ]
-        """
-        sa = (state, action)
-        sa_next = (next_state, next_action)
-        td_target = reward + self.gamma * self.Q[sa_next]
-        td_error  = td_target - self.Q[sa]
-        self.Q[sa] += self.alpha * td_error
-
-    def train(self, env, num_episodes=1000, max_steps_per_episode=180):
-        """
-        Boucle d'entraînement complète
-        env : objet avec reset() et step(action)
-        """
+    def train(self, num_episodes=100, max_steps=200):
         for ep in range(num_episodes):
-            state = env.reset()
+            obs = self.env.reset()
+            state = self.discretize(obs)
             action = self.choose_action(state)
-            for t in range(max_steps_per_episode):
-                next_state, reward, done, _ = env.step(action)
+
+            for _ in range(max_steps):
+                next_obs, reward, done, _ = self.env.step(action)
+                next_state = self.discretize(next_obs)
                 next_action = self.choose_action(next_state)
 
-                # Mise à jour SARSA
-                self.learn(state, action, reward, next_state, next_action)
+                # mise à jour SARSA
+                td_target = reward + self.gamma * self.Q[next_state][next_action]
+                td_error  = td_target - self.Q[state][action]
+                self.Q[state][action] += self.alpha * td_error
 
-                # avancer
                 state, action = next_state, next_action
-
-                # atualização ε
-                self.update_epsilon()
-
                 if done:
                     break

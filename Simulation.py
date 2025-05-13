@@ -5,13 +5,36 @@ from Sarsa import SarsaAgent
 import os
 from datetime import datetime
 from Mpc import MPCController
+from gym.wrappers import Monitor
+
+
+def make_env(sumo_config):
+    """Crée et renvoie un environnement GymTrafficEnv."""
+    return GymTrafficEnv(sumo_config)
 
 def safe_render(env):
-    """Effectue un rendu SUMO sans lever d'exception."""
+    """Lance la simulation SUMO en mode graphique (GUI) si possible."""
     try:
         env.render()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Erreur lors du rendu : {e}")
+        print("Lancement de SUMO en mode GUI...")
+        env.close()
+        env.render(mode='human')
+        print("Rendu SUMO en mode GUI terminé.")
+
+class CSVLogger:
+    """Helper pour enregistrer des lignes dans un fichier CSV."""
+    def __init__(self, filepath, headers):
+        self.csvfile = open(filepath, 'w', newline='')
+        self.writer = csv.writer(self.csvfile)
+        self.writer.writerow(headers)
+
+    def log(self, row):
+        self.writer.writerow(row)
+
+    def close(self):
+        self.csvfile.close()
 
 # Hyperparamètres SARSA
 alpha = 0.1        # Taux d'apprentissage
@@ -39,15 +62,15 @@ def train_and_log(env, agent, log_filename):
     state = env.reset()
     done = False
     step = 0
-    with open(os.path.join(LOG_DIR, log_filename), 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(['step', 'state', 'action', 'reward'])
-        while not done and step < max_steps_per_episode:
-            action = agent.select_action(state)
-            next_state, reward, done, _ = env.step(action)
-            writer.writerow([step, state, action, reward])
-            state = next_state
-            step += 1
+    logger = CSVLogger(os.path.join(LOG_DIR, log_filename),
+                       ['step', 'state', 'action', 'reward'])
+    while not done and step < max_steps_per_episode:
+        action = agent.select_action(state)
+        next_state, reward, done, _ = env.step(action)
+        logger.log([step, state, action, reward])
+        state = next_state
+        step += 1
+    logger.close()
 
 def run_baseline(env, actions, log_filename):
     """Exécute la politique aléatoire et logge dans un CSV."""
@@ -55,15 +78,15 @@ def run_baseline(env, actions, log_filename):
     state = env.reset()
     done = False
     step = 0
-    with open(os.path.join(LOG_DIR, log_filename), 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(['step', 'state', 'action', 'reward'])
-        while not done and step < max_steps_per_episode:
-            action = random.choice(actions)
-            next_state, reward, done, _ = env.step(action)
-            writer.writerow([step, state, action, reward])
-            state = next_state
-            step += 1
+    logger = CSVLogger(os.path.join(LOG_DIR, log_filename),
+                       ['step', 'state', 'action', 'reward'])
+    while not done and step < max_steps_per_episode:
+        action = random.choice(actions)
+        next_state, reward, done, _ = env.step(action)
+        logger.log([step, state, action, reward])
+        state = next_state
+        step += 1
+    logger.close()
 
 def grid_search(sumo_config, actions):
     """Recherche la meilleure configuration d'hyperparamètres SARSA."""
@@ -72,7 +95,7 @@ def grid_search(sumo_config, actions):
     for alpha_val in ALPHAS:
         for gamma_val in GAMMAS:
             for eps_start, eps_end in EPSILON_PAIRS:
-                env_h = GymTrafficEnv(sumo_config)
+                env_h = make_env(sumo_config)
                 agent_h = SarsaAgent(actions,
                                      alpha=alpha_val,
                                      gamma=gamma_val,
@@ -85,7 +108,7 @@ def grid_search(sumo_config, actions):
                     state = env_h.reset()
                     done = False
                     while not done:
-                        action = agent_h.choose_action(state)
+                        action = agent_h.select_action(state)
                         next_state, reward, done, _ = env_h.step(action)
                         total_wait += -reward
                         state = next_state
@@ -98,18 +121,32 @@ def grid_search(sumo_config, actions):
     return best_config, best_score
 
 def main():
+    #TODO : Remplacer par le chemin vers votre fichier de configuration SUMO
     sumo_config = "path/to/sumo_config.sumocfg"
+    
+    #TODO : Vérifiez que les actions correspondent à votre environnement
+    # Exemple : 4 actions pour 4 phases de feu
     actions = [0, 1, 2, 3]
 
     # 1. Entraînement SARSA + log
-    env = GymTrafficEnv(sumo_config)
+    env = Monitor(
+        make_env(sumo_config),
+        directory=os.path.join(LOG_DIR, f"monitor_simulation_{TIMESTAMP}"),
+        video_callable=lambda ep: True,
+        force=True
+    )
     agent = SarsaAgent(actions, alpha=alpha, gamma=gamma, epsilon=epsilon)
     agent.train(env, num_episodes=SIM_EPISODES, max_steps_per_episode=max_steps_per_episode)
     train_and_log(env, agent, f"simulation_{TIMESTAMP}.csv")
     env.close()
 
     # 2. Baseline aléatoire + log
-    env_baseline = GymTrafficEnv(sumo_config)
+    env_baseline = Monitor(
+        make_env(sumo_config),
+        directory=os.path.join(LOG_DIR, f"monitor_baseline_{TIMESTAMP}"),
+        video_callable=lambda ep: True,
+        force=True
+    )
     run_baseline(env_baseline, actions, f"baseline_{TIMESTAMP}.csv")
     env_baseline.close()
 
@@ -120,6 +157,7 @@ def main():
     # 4. Grid-search hyperparamètres
     best_conf, best_score = grid_search(sumo_config, actions)
     print("Meilleure config :", best_conf, "avec avg_wait =", best_score)
+
 
 if __name__ == "__main__":
     main()
