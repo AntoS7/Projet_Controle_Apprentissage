@@ -1,0 +1,12 @@
+<routes>
+    <vType id="car" accel="2.6" decel="4.5" length="5" maxSpeed="25"/>
+    
+    <!-- Flux intense matin (7h-9h), 800 véhicules/h -->
+    <flow id="morning_peak" begin="0" end="7200" vehsPerHour="800" type="car" from="edge_N" to="edge_S"/>
+
+    <!-- Creux (10h-16h), 200 véhicules/h -->
+    <flow id="off_peak" begin="10800" end="21600" vehsPerHour="200" type="car" from="edge_E" to="edge_W"/>
+
+    <!-- Flux très intense soir (17h-19h), 900 véhicules/h -->
+    <flow id="evening_peak" begin="36000" end="43200" vehsPerHour="900" type="car" from="edge_S" to="edge_N"/>
+</routes>

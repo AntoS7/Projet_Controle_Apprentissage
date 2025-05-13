@@ -1,9 +1,17 @@
 import csv
 import random
-from TrafficEnv import TrafficEnv
+from GymTrafficEnv import GymTrafficEnv
 from Sarsa import SarsaAgent
 import os
 from datetime import datetime
+from Mpc import MPCController
+
+def safe_render(env):
+    """Effectue un rendu SUMO sans lever d'exception."""
+    try:
+        env.render()
+    except Exception:
+        pass
 
 # Hyperparamètres SARSA
 alpha = 0.1        # Taux d'apprentissage
@@ -27,10 +35,7 @@ EPSILON_PAIRS   = [(1.0, 0.1), (0.9, 0.05)]  # (ε_start, ε_end)
 
 def train_and_log(env, agent, log_filename):
     """Entraîne l'agent et génère un CSV de performance."""
-    try:
-        env.render()  # lancement GUI une seule fois
-    except Exception:
-        pass
+    safe_render(env)
     state = env.reset()
     done = False
     step = 0
@@ -46,10 +51,7 @@ def train_and_log(env, agent, log_filename):
 
 def run_baseline(env, actions, log_filename):
     """Exécute la politique aléatoire et logge dans un CSV."""
-    try:
-        env.render()
-    except Exception:
-        pass
+    safe_render(env)
     state = env.reset()
     done = False
     step = 0
@@ -70,7 +72,7 @@ def grid_search(sumo_config, actions):
     for alpha_val in ALPHAS:
         for gamma_val in GAMMAS:
             for eps_start, eps_end in EPSILON_PAIRS:
-                env_h = TrafficEnv(sumo_config)
+                env_h = GymTrafficEnv(sumo_config)
                 agent_h = SarsaAgent(actions,
                                      alpha=alpha_val,
                                      gamma=gamma_val,
@@ -100,18 +102,22 @@ def main():
     actions = [0, 1, 2, 3]
 
     # 1. Entraînement SARSA + log
-    env = TrafficEnv(sumo_config)
+    env = GymTrafficEnv(sumo_config)
     agent = SarsaAgent(actions, alpha=alpha, gamma=gamma, epsilon=epsilon)
     agent.train(env, num_episodes=SIM_EPISODES, max_steps_per_episode=max_steps_per_episode)
     train_and_log(env, agent, f"simulation_{TIMESTAMP}.csv")
     env.close()
 
     # 2. Baseline aléatoire + log
-    env_baseline = TrafficEnv(sumo_config)
+    env_baseline = GymTrafficEnv(sumo_config)
     run_baseline(env_baseline, actions, f"baseline_{TIMESTAMP}.csv")
     env_baseline.close()
 
-    # 3. Grid-search hyperparamètres
+    # 3. Contrôle MPC via la classe MPCController
+    mpc = MPCController(H=12, lam=1.0, log_dir=LOG_DIR, max_steps=max_steps_per_episode)
+    mpc.run_simulation(sumo_config, f"mpc_{TIMESTAMP}.csv")
+
+    # 4. Grid-search hyperparamètres
     best_conf, best_score = grid_search(sumo_config, actions)
     print("Meilleure config :", best_conf, "avec avg_wait =", best_score)
 
