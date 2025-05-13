@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2025-05-13 11:06:06 by Eclipse SUMO netedit Version 1.22.0
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <!-- VTypes -->
+    <vType id="c1" length="5.00" maxSpeed="25.00" accel="2.6" decel="4.5"/>
+    <vType id="car" length="5.00" maxSpeed="25.00" accel="2.6" decel="4.5"/>
+    <!-- Vehicles, persons and containers (sorted by depart) -->
+    <flow id="morning_NS" begin="0.00" from="edge_N" to="-edge_S" end="1200.00" vehsPerHour="400"/>
+    <flow id="morning_WE" begin="0.00" from="edge_W" to="-edge_E" end="1200.00" vehsPerHour="400"/>
+    <flow id="afternoon_NS" begin="1200.00" color="cyan" from="edge_N" to="-edge_S" end="1800.00" vehsPerHour="200"/>
+    <flow id="afternoon_WE" begin="1200.00" color="cyan" from="edge_W" to="-edge_E" end="1800.00" vehsPerHour="200"/>
+    <flow id="evening_NS" begin="1800.00" color="green" from="edge_N" to="-edge_S" end="2400.00" vehsPerHour="500"/>
+    <flow id="evening_WE" begin="1800.00" color="green" from="edge_W" to="-edge_E" end="2400.00" vehsPerHour="500"/>
+</routes>
