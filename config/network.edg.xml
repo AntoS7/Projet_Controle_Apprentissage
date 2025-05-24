@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edges xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/edges_file.xsd">
+    <!-- Intersection 1 connections -->
+    <edge id="north_1_to_int1" from="north_1" to="intersection_1" numLanes="2" speed="13.89"/>
+    <edge id="int1_to_south_1" from="intersection_1" to="south_1" numLanes="2" speed="13.89"/>
+    <edge id="east_1_to_int1" from="east_1" to="intersection_1" numLanes="2" speed="13.89"/>
+    <edge id="int1_to_west_1" from="intersection_1" to="west_1" numLanes="2" speed="13.89"/>
+    
+    <!-- Intersection 2 connections -->
+    <edge id="north_2_to_int2" from="north_2" to="intersection_2" numLanes="2" speed="13.89"/>
+    <edge id="int2_to_south_2" from="intersection_2" to="south_2" numLanes="2" speed="13.89"/>
+    <edge id="east_2_to_int2" from="east_2" to="intersection_2" numLanes="2" speed="13.89"/>
+    <edge id="int2_to_west_2" from="intersection_2" to="west_2" numLanes="2" speed="13.89"/>
+    
+    <!-- Intersection 3 connections -->
+    <edge id="north_3_to_int3" from="north_3" to="intersection_3" numLanes="2" speed="13.89"/>
+    <edge id="int3_to_south_3" from="intersection_3" to="south_3" numLanes="2" speed="13.89"/>
+    <edge id="east_3_to_int3" from="east_3" to="intersection_3" numLanes="2" speed="13.89"/>
+    <edge id="int3_to_west_3" from="intersection_3" to="west_3" numLanes="2" speed="13.89"/>
+    
+    <!-- Inter-intersection connections -->
+    <edge id="int1_to_int2" from="intersection_1" to="intersection_2" numLanes="2" speed="13.89"/>
+    <edge id="int2_to_int1" from="intersection_2" to="intersection_1" numLanes="2" speed="13.89"/>
+    <edge id="int1_to_int3" from="intersection_1" to="intersection_3" numLanes="2" speed="13.89"/>
+    <edge id="int3_to_int1" from="intersection_3" to="intersection_1" numLanes="2" speed="13.89"/>
+    <edge id="int2_to_int3" from="intersection_2" to="intersection_3" numLanes="2" speed="13.89"/>
+    <edge id="int3_to_int2" from="intersection_3" to="intersection_2" numLanes="2" speed="13.89"/>
+</edges>
