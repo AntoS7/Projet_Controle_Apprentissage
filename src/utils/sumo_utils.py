@@ -13,6 +13,44 @@ from typing import Dict, List, Optional, Tuple
 import xml.etree.ElementTree as ET
 
 
+def setup_sumo():
+    """Setup SUMO environment variables if needed."""
+    if 'SUMO_HOME' not in os.environ:
+        # Try common SUMO installation paths
+        sumo_paths = [
+            '/usr/share/sumo',
+            '/usr/local/share/sumo',
+            '/opt/homebrew/share/sumo',  # Homebrew on Apple Silicon
+            '/usr/local/Cellar/sumo',    # Homebrew on Intel
+            '/opt/homebrew/opt/sumo/share/sumo'  # Homebrew specific path
+        ]
+        
+        for path in sumo_paths:
+            if os.path.exists(path):
+                os.environ['SUMO_HOME'] = path
+                print(f"SUMO_HOME set to: {path}")
+                return path
+        
+        # If not found, try to detect from sumo binary location
+        try:
+            sumo_binary = subprocess.check_output(['which', 'sumo'], text=True).strip()
+            if sumo_binary:
+                # Extract SUMO_HOME from binary path
+                sumo_home = os.path.dirname(os.path.dirname(sumo_binary)) + '/share/sumo'
+                if os.path.exists(sumo_home):
+                    os.environ['SUMO_HOME'] = sumo_home
+                    print(f"SUMO_HOME detected and set to: {sumo_home}")
+                    return sumo_home
+        except subprocess.CalledProcessError:
+            pass
+            
+        print("Warning: SUMO_HOME not found. Please set it manually if SUMO is installed.")
+        return None
+    else:
+        print(f"SUMO_HOME already set to: {os.environ['SUMO_HOME']}")
+        return os.environ['SUMO_HOME']
+
+
 class SumoConnection:
     """Manages connection to SUMO simulation."""
     

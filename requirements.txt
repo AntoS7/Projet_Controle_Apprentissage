@@ -4,3 +4,6 @@ numpy
 gymnasium
 matplotlib
 networkx
+pandas
+scikit-learn
+pickle-mixin

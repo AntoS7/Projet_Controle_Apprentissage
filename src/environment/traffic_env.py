@@ -114,7 +114,7 @@ class TrafficEnvironment(gym.Env):
             print("Starting SUMO simulation...")
             traci.start(sumo_cmd)
             self.sumo_running = True
-            print("✅ Connected to SUMO successfully")
+            print("Connected to SUMO successfully")
             
         except Exception as e:
             print(f"Failed to start SUMO with sumolib: {e}")
@@ -168,7 +168,7 @@ class TrafficEnvironment(gym.Env):
             for attempt in range(max_retries):
                 try:
                     traci.init(port=port, numRetries=3, host="localhost")
-                    print(f"✅ Connected to SUMO on port {port}")
+                    print(f"Connected to SUMO on port {port}")
                     self.sumo_running = True
                     break
                 except Exception as e:
@@ -196,7 +196,7 @@ class TrafficEnvironment(gym.Env):
             # Re-initialize traffic lights after reload
             self._init_traffic_lights()
             
-            print("🔄 Reset simulation state (SUMO still running)")
+            print("Reset simulation state (SUMO still running)")
             
         except Exception as e:
             print(f"Warning: Failed to reset simulation state: {e}")
@@ -450,7 +450,7 @@ class TrafficEnvironment(gym.Env):
                     
                     # If simulation is paused or not started, this will resume it
                     # SUMO GUI automatically starts when we begin stepping
-                    print(f"🎬 Simulation resumed at time {sim_time:.1f}s")
+                    print(f"Simulation resumed at time {sim_time:.1f}s")
                     return True
             except Exception as e:
                 print(f"Warning: Could not start simulation: {e}")

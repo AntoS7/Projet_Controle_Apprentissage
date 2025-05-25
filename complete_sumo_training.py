@@ -208,20 +208,24 @@ def create_sumo_config():
     return config_path
 
 
-def train_with_real_sumo(use_gui=False, episodes=30):
+def train_with_real_sumo(use_gui=False, episodes=30, gui_options=None):
     """Train SARSA agent with real SUMO simulation."""
     print("\n" + "="*50)
     print("TRAINING WITH REAL SUMO SIMULATION")
     if use_gui:
-        print("🎮 GUI MODE ENABLED - Visual simulation")
+        print("GUI MODE ENABLED - Visual simulation")
+        if gui_options:
+            print(f"   Speed: {gui_options.get('speed', 1.0)}x")
+            print(f"   Step mode: {'ON' if gui_options.get('step_mode') else 'OFF'}")
+            print(f"   Auto-start: {'ON' if gui_options.get('auto_start', True) else 'OFF'}")
     else:
-        print("⚡ HEADLESS MODE - Fast training")
+        print("HEADLESS MODE - Fast training")
     print("="*50)
     
     try:
         from environment.traffic_env import TrafficEnvironment
         
-        # Create environment
+        # Create environment with enhanced GUI options
         env = TrafficEnvironment(
             sumo_cfg_file="config/simulation.sumocfg",
             use_gui=use_gui,
@@ -244,7 +248,17 @@ def train_with_real_sumo(use_gui=False, episodes=30):
         rewards_history = []
         queues_history = []
         
+        # GUI performance tracking
+        if use_gui:
+            episode_start_times = []
+            performance_metrics = {
+                'avg_rewards': [],
+                'avg_queues': [],
+                'learning_progress': []
+            }
+        
         for episode in range(episodes):
+            episode_start_time = time.time()
             print(f"Episode {episode + 1}/{episodes}")
             
             state, info = env.reset()
@@ -265,9 +279,17 @@ def train_with_real_sumo(use_gui=False, episodes=30):
                 if 'avg_queue_length' in info:
                     total_queues += info['avg_queue_length']
                 
-                # Add delay for GUI visualization
-                if use_gui and steps % 5 == 0:  # Slow down every 5 steps
-                    time.sleep(0.1)
+                # Enhanced GUI visualization controls
+                if use_gui:
+                    step_delay = 0.1 / gui_options.get('speed', 1.0) if gui_options else 0.1
+                    
+                    # Step-by-step mode
+                    if gui_options and gui_options.get('step_mode') and steps % gui_options.get('pause_freq', 50) == 0:
+                        print(f"     Step {steps}: Reward={reward:.1f}, Queue={info.get('avg_queue_length', 0):.1f}")
+                        print("     Press Enter to continue...")
+                        input()
+                    elif steps % 5 == 0:  # Regular slow down
+                        time.sleep(step_delay)
                 
                 if done or truncated:
                     agent.end_episode(reward)
@@ -284,16 +306,35 @@ def train_with_real_sumo(use_gui=False, episodes=30):
             rewards_history.append(total_reward)
             queues_history.append(avg_queue)
             
+            # Enhanced episode summary for GUI
+            episode_time = time.time() - episode_start_time
             print(f"  Reward: {total_reward:.1f}, Avg Queue: {avg_queue:.1f}, "
-                  f"Steps: {steps}, Epsilon: {agent.epsilon:.3f}")
+                  f"Steps: {steps}, Epsilon: {agent.epsilon:.3f}, Time: {episode_time:.1f}s")
             
-            # Pause between episodes in GUI mode for observation
+            # GUI performance tracking
+            if use_gui:
+                episode_start_times.append(episode_start_time)
+                recent_rewards = rewards_history[-min(5, len(rewards_history)):]
+                recent_queues = queues_history[-min(5, len(queues_history)):]
+                
+                performance_metrics['avg_rewards'].append(np.mean(recent_rewards))
+                performance_metrics['avg_queues'].append(np.mean(recent_queues))
+                performance_metrics['learning_progress'].append(agent.epsilon)
+                
+                print(f"  Recent Performance: Avg Reward={np.mean(recent_rewards):.1f}, "
+                      f"Avg Queue={np.mean(recent_queues):.1f}")
+            
+            # Enhanced episode transitions for GUI
             if use_gui and episode < episodes - 1:
-                print("  Press Enter to continue to next episode...")
-                input()
-                # Automatically start the simulation for the next episode
-                print("  🎬 Starting next episode...")
-                env.start_simulation()
+                auto_start = not gui_options or gui_options.get('auto_start', True)
+                if auto_start:
+                    print("  Press Enter to continue to next episode...")
+                    input()
+                    print("  Starting next episode...")
+                    env.start_simulation()
+                else:
+                    print("  Manual mode: Configure SUMO GUI and press Enter when ready...")
+                    input()
         
         env.close()
         
@@ -344,9 +385,13 @@ def plot_training_results(rewards, queues, title):
     
     plt.tight_layout()
     
-    # Save plot
+    # Create plots directory if it doesn't exist
+    plots_dir = "plots"
+    os.makedirs(plots_dir, exist_ok=True)
+    
+    # Save plot to plots directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f'sumo_training_{timestamp}.png'
+    filename = os.path.join(plots_dir, f'sumo_training_{timestamp}.png')
     plt.savefig(filename, dpi=150, bbox_inches='tight')
     print(f"Results saved to: {filename}")
     plt.show()
@@ -361,13 +406,22 @@ def main():
                        help='Number of training episodes (default: 30)')
     parser.add_argument('--fast', action='store_true',
                        help='Fast mode with fewer episodes (10)')
+    # Enhanced GUI options
+    parser.add_argument('--gui-speed', type=float, default=1.0,
+                       help='GUI simulation speed multiplier (0.1=slow, 2.0=fast)')
+    parser.add_argument('--gui-step', action='store_true',
+                       help='Step-by-step GUI mode with manual control')
+    parser.add_argument('--gui-pause-freq', type=int, default=50,
+                       help='Pause frequency in GUI mode (steps between pauses)')
+    parser.add_argument('--gui-auto-start', action='store_true', default=True,
+                       help='Automatically start next episodes in GUI mode')
     
     args = parser.parse_args()
     
     # Adjust episodes for fast mode
     if args.fast:
         episodes = 10
-        print("🚀 FAST MODE: Running 10 episodes")
+        print("FAST MODE: Running 10 episodes")
     else:
         episodes = args.episodes
     
@@ -375,12 +429,17 @@ def main():
     print("="*60)
     
     if args.gui:
-        print("🎮 GUI MODE: Visual simulation enabled")
-        print("   - Episodes will pause between runs for observation")
-        print("   - Press Enter to automatically start the next episode")
-        print("   - Slower training but visual feedback")
+        print("GUI MODE: Visual simulation enabled")
+        print(f"   - Simulation speed: {args.gui_speed}x")
+        if args.gui_step:
+            print("   - Step-by-step mode: Manual control enabled")
+        else:
+            print("   - Episodes will pause between runs for observation")
+        if args.gui_auto_start:
+            print("   - Auto-start: Press Enter to automatically start episodes")
+        print("   - Enhanced visual feedback and controls")
     else:
-        print("⚡ HEADLESS MODE: Fast training without visualization")
+        print("HEADLESS MODE: Fast training without visualization")
     
     # Step 1: Generate network files
     print("\n1. Setting up SUMO network...")
@@ -405,9 +464,17 @@ def main():
         print(f"✓ Network file exists: {network_file}")
         
         # Step 5: Train with real SUMO
+        gui_options = {
+            'speed': args.gui_speed,
+            'step_mode': args.gui_step,
+            'pause_freq': args.gui_pause_freq,
+            'auto_start': args.gui_auto_start
+        }
+        
         agent, rewards, queues = train_with_real_sumo(
             use_gui=args.gui, 
-            episodes=episodes
+            episodes=episodes,
+            gui_options=gui_options
         )
         
         if agent is not None:
