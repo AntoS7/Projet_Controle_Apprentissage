@@ -145,17 +145,6 @@ Both the **Makefile** and **shell script** provide identical functionality:
 | `clean` | Clean generated files | - | - |
 | `plots` | Open plots directory | - | - |
 | `models` | Show saved models | - | - |
-├── logs/                           # Training logs and metrics
-├── results/                        # Performance analysis results
-├── examples/                       # Example scripts and tutorials
-├── complete_sumo_training.py       # Complete setup and training
-├── quick_sumo_training.py          # Fast training with fallbacks
-├── demo_sumo_gui.py               # Interactive GUI demonstrations
-├── real_sumo_training.py          # Advanced training with full monitoring
-├── robust_sumo_training.py        # Robust training with error handling
-├── test_gui_visibility.py         # GUI troubleshooting utilities
-├── Makefile                       # Automated setup and training targets
-└── requirements.txt               # Python dependencies
 ```
 
 ## Quick Start
@@ -1081,12 +1070,7 @@ Episode 100: Total Reward: -891  (69% improvement)
 | LibSUMO           | 8s          | 6%        | 60MB   | 4/5 |
 | Direct CLI        | 5s          | 4%        | 40MB   | 5/5 |
 
-### System Requirements
-- **Minimum**: 4GB RAM, dual-core CPU, Python 3.8+
-- **Recommended**: 8GB RAM, quad-core CPU, Python 3.9+
-- **Optimal**: 16GB RAM, 8-core CPU, SSD storage
-
-## Conclusion & Next Steps
+## Conclusion 
 
 ### Project Achievements
 This traffic light control simulation successfully demonstrates:
@@ -1097,23 +1081,7 @@ This traffic light control simulation successfully demonstrates:
 4. **🔧 Robust Integration**: Multiple SUMO connection methods with comprehensive fallback mechanisms
 5. **📊 Organized Output**: Automatic plot and model organization with timestamped results
 6. **📋 Comprehensive Documentation**: Complete usage guides and interactive help systems
-7. **🎯 Multiple Training Modes**: Demo, fast, GUI, headless, and step-by-step educational options
-
-### Key Contributions
-- **🛡️ Safety-First RL**: On-policy SARSA algorithm ideal for traffic control applications
-- **🏙️ Multi-Intersection Control**: Coordinated 3-intersection optimization with global awareness
-- **✨ Advanced GUI Features**: Seamless episode transitions, auto-start functionality, and speed controls
-- **🏭 Production-Ready**: Robust error handling, multiple integration methods, and automated workflows
-- **🎓 Educational Value**: Clear documentation, interactive demos, and step-by-step learning modes
-- **⚡ Developer Experience**: Professional launch tools with comprehensive automation
-
-### Launch Tools Benefits
-The new launch tools provide:
-- **⚡ Rapid Development**: One-command setup, training, and testing
-- **🎨 User-Friendly Interface**: Colored output, progress indicators, and clear feedback
-- **🔄 Consistent Workflows**: Standardized commands across different development environments
-- **📁 Organized Output**: Automatic file organization and directory management
-- **🧪 Multiple Testing Modes**: From quick demos to comprehensive training sessions
+7. **🎯 Multiple Training Modes**: Demo, fast, GUI, and headless
 
 ### Potential Extensions
 
@@ -1140,43 +1108,3 @@ The new launch tools provide:
 - **Real-Time API**: REST API for live traffic control integration
 - **Mobile Dashboard**: Web interface for monitoring and control
 - **Data Analytics**: Historical performance analysis and reporting
-
-### Getting Started for Developers
-1. **Fork the repository** and explore the codebase
-2. **Run the demo**: `make demo` or `./launch.sh demo` for interactive exploration
-3. **Experiment with parameters** in the configuration files
-4. **Implement new algorithms** using the existing environment interface
-5. **Contribute improvements** through pull requests
-
-### Research Applications
-This project serves as a foundation for:
-- **Academic Research**: Traffic engineering and RL algorithm development
-- **Urban Planning**: Simulation of proposed intersection improvements
-- **Smart City Development**: Integration with IoT and connected vehicle systems
-- **Education**: Teaching RL concepts with practical, visual applications
-
-The project demonstrates that reinforcement learning can provide intelligent, adaptive traffic control that significantly outperforms traditional fixed-time systems while maintaining the safety and reliability required for real-world deployment.
-
-## License
-
-MIT License - See LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request with clear description
-
-## Support
-
-For questions or issues:
-1. Check the troubleshooting section above
-2. Review existing GitHub issues
-3. Create a new issue with detailed description
-4. Include system information and error logs
-
----
-
-> **📝 Documentation Status**: This README has been comprehensively verified and updated to accurately reflect the actual project structure and capabilities. All file references, commands, and examples have been validated against the current codebase. Last updated: 2025.
