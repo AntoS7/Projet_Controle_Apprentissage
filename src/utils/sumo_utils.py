@@ -9,46 +9,140 @@ import traci
 import subprocess
 import time
 import os
+import platform
+import shutil
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import xml.etree.ElementTree as ET
 
 
 def setup_sumo():
-    """Setup SUMO environment variables if needed."""
-    if 'SUMO_HOME' not in os.environ:
-        # Try common SUMO installation paths
+    """Setup SUMO environment variables with enhanced cross-platform detection."""
+    import platform
+    import shutil
+    from pathlib import Path
+    
+    # Check if already set
+    if 'SUMO_HOME' in os.environ:
+        sumo_home = os.environ['SUMO_HOME']
+        if os.path.exists(sumo_home):
+            print(f"SUMO_HOME already set to: {sumo_home}")
+            return sumo_home
+        else:
+            print(f"Warning: SUMO_HOME set to non-existent path: {sumo_home}")
+    
+    # Load from .env file if available
+    env_file = Path(__file__).parent.parent.parent / '.env'
+    if env_file.exists():
+        try:
+            with open(env_file, 'r') as f:
+                for line in f:
+                    if line.startswith('SUMO_HOME='):
+                        sumo_home = line.split('=', 1)[1].strip()
+                        if os.path.exists(sumo_home):
+                            os.environ['SUMO_HOME'] = sumo_home
+                            print(f"SUMO_HOME loaded from .env: {sumo_home}")
+                            return sumo_home
+        except Exception:
+            pass
+    
+    # Platform-specific detection
+    system = platform.system().lower()
+    
+    if system == 'windows':
+        sumo_paths = [
+            'C:/Program Files (x86)/Eclipse/Sumo',
+            'C:/Program Files/Eclipse/Sumo',
+            'C:/sumo',
+            str(Path.home() / 'sumo')
+        ]
+        binary_name = 'sumo.exe'
+    elif system == 'darwin':  # macOS
+        sumo_paths = [
+            '/opt/homebrew/share/sumo',
+            '/opt/homebrew/opt/sumo/share/sumo',
+            '/usr/local/share/sumo',
+            '/usr/local/opt/sumo/share/sumo',
+            '/usr/share/sumo'
+        ]
+        binary_name = 'sumo'
+    else:  # Linux
         sumo_paths = [
             '/usr/share/sumo',
             '/usr/local/share/sumo',
-            '/opt/homebrew/share/sumo',  # Homebrew on Apple Silicon
-            '/usr/local/Cellar/sumo',    # Homebrew on Intel
-            '/opt/homebrew/opt/sumo/share/sumo'  # Homebrew specific path
+            '/opt/sumo',
+            str(Path.home() / '.local/share/sumo')
         ]
+        binary_name = 'sumo'
+    
+    # Check common installation paths
+    for path in sumo_paths:
+        if os.path.exists(path) and _validate_sumo_path(path):
+            os.environ['SUMO_HOME'] = path
+            print(f"SUMO_HOME detected and set to: {path}")
+            return path
+    
+    # Try to detect from binary location
+    sumo_binary = shutil.which(binary_name)
+    if sumo_binary:
+        sumo_home = _extract_sumo_home_from_binary(sumo_binary)
+        if sumo_home:
+            os.environ['SUMO_HOME'] = sumo_home
+            print(f"SUMO_HOME detected from binary path: {sumo_home}")
+            return sumo_home
+    
+    # Final attempt: use which/where command
+    try:
+        if system == 'windows':
+            result = subprocess.run(['where', binary_name], capture_output=True, text=True)
+        else:
+            result = subprocess.run(['which', binary_name], capture_output=True, text=True)
         
-        for path in sumo_paths:
-            if os.path.exists(path):
-                os.environ['SUMO_HOME'] = path
-                print(f"SUMO_HOME set to: {path}")
-                return path
+        if result.returncode == 0:
+            binary_path = result.stdout.strip().split('\n')[0]
+            sumo_home = _extract_sumo_home_from_binary(binary_path)
+            if sumo_home:
+                os.environ['SUMO_HOME'] = sumo_home
+                print(f"SUMO_HOME detected from system path: {sumo_home}")
+                return sumo_home
+    except Exception:
+        pass
+    
+    print("Warning: SUMO_HOME not found. Run 'python setup_environment.py' to install SUMO.")
+    return None
+
+
+def _validate_sumo_path(path):
+    """Validate if a path contains a valid SUMO installation."""
+    if not os.path.exists(path):
+        return False
+    
+    path = Path(path)
+    required_items = ['tools']  # At minimum, tools directory should exist
+    
+    for item in required_items:
+        if not (path / item).exists():
+            return False
+    
+    return True
+
+
+def _extract_sumo_home_from_binary(binary_path):
+    """Extract SUMO_HOME from binary path."""
+    binary_path = Path(binary_path)
+    
+    # Common patterns for SUMO installation
+    for parent in binary_path.parents:
+        # Check if this directory contains SUMO structure
+        if _validate_sumo_path(str(parent)):
+            return str(parent)
         
-        # If not found, try to detect from sumo binary location
-        try:
-            sumo_binary = subprocess.check_output(['which', 'sumo'], text=True).strip()
-            if sumo_binary:
-                # Extract SUMO_HOME from binary path
-                sumo_home = os.path.dirname(os.path.dirname(sumo_binary)) + '/share/sumo'
-                if os.path.exists(sumo_home):
-                    os.environ['SUMO_HOME'] = sumo_home
-                    print(f"SUMO_HOME detected and set to: {sumo_home}")
-                    return sumo_home
-        except subprocess.CalledProcessError:
-            pass
-            
-        print("Warning: SUMO_HOME not found. Please set it manually if SUMO is installed.")
-        return None
-    else:
-        print(f"SUMO_HOME already set to: {os.environ['SUMO_HOME']}")
-        return os.environ['SUMO_HOME']
+        # Check share/sumo subdirectory (common on Linux/macOS)
+        share_sumo = parent / 'share' / 'sumo'
+        if _validate_sumo_path(str(share_sumo)):
+            return str(share_sumo)
+    
+    return None
 
 
 class SumoConnection:
