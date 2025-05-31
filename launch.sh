@@ -13,13 +13,29 @@ print_help() {
     echo "  help              - Show this help message"
     echo "  setup             - Setup project directories"
     echo "  install           - Install Python dependencies"
-    echo "  train             - Run headless training (30 episodes)"
-    echo "  train-gui         - Run GUI training (30 episodes)"
-    echo "  train-fast        - Run fast training (10 episodes)"
-    echo "  train-gui-fast    - Run fast GUI training (10 episodes)"
+    echo ""
+    echo "Training Commands:"
+    echo "  train             - Run headless training (50 episodes, 600 steps)"
+    echo "  train-gui         - Run GUI training (50 episodes, 600 steps)"
+    echo "  train-fast        - Run fast training (20 episodes)"
+    echo "  train-extended    - Run extended training (150 episodes)"
+    echo "  train-long        - Run long training (300 episodes)"
+    echo "  train-ultra       - Run ultra training (500 episodes)"
+    echo "  train-marathon    - Run marathon training (1000 episodes)"
+    echo ""
+    echo "Episode Duration:"
+    echo "  train-short       - Short episodes (400 steps)"
+    echo "  train-long-ep     - Long episodes (800 steps)"
+    echo "  train-extended-ep - Extended episodes (1200 steps)"
+    echo ""
+    echo "GUI & Demo:"
+    echo "  train-gui-fast    - Run fast GUI training (20 episodes)"
     echo "  train-step        - Run step-by-step GUI training"
     echo "  demo              - Run quick demo (2 episodes)"
+    echo ""
+    echo "Utilities:"
     echo "  test              - Test SUMO installation"
+    echo "  test-reward       - Test enhanced reward function features"
     echo "  status            - Show project status"
     echo "  clean             - Clean generated files"
     echo "  plots             - Show plots directory"
@@ -42,16 +58,44 @@ case "${1:-help}" in
         echo "✓ Dependencies installed"
         ;;
     "train")
-        echo "Starting headless training..."
-        $PYTHON complete_sumo_training.py --episodes 30
+        echo "Starting headless training (50 episodes, 600 steps)..."
+        $PYTHON complete_sumo_training.py --episodes 50
         ;;
     "train-gui")
-        echo "Starting GUI training..."
-        $PYTHON complete_sumo_training.py --gui --episodes 30 --gui-speed 1.0
+        echo "Starting GUI training (50 episodes, 600 steps)..."
+        $PYTHON complete_sumo_training.py --gui --episodes 50 --gui-speed 1.0
         ;;
     "train-fast")
-        echo "Starting fast training..."
+        echo "Starting fast training (20 episodes)..."
         $PYTHON complete_sumo_training.py --fast
+        ;;
+    "train-extended")
+        echo "Starting extended training (150 episodes)..."
+        $PYTHON complete_sumo_training.py --extended
+        ;;
+    "train-long")
+        echo "Starting long training (300 episodes)..."
+        $PYTHON complete_sumo_training.py --long
+        ;;
+    "train-ultra")
+        echo "Starting ultra training (500 episodes)..."
+        $PYTHON complete_sumo_training.py --ultra
+        ;;
+    "train-marathon")
+        echo "Starting marathon training (1000 episodes)..."
+        $PYTHON complete_sumo_training.py --marathon
+        ;;
+    "train-short")
+        echo "Starting training with short episodes (400 steps)..."
+        $PYTHON complete_sumo_training.py --episode-duration short
+        ;;
+    "train-long-ep")
+        echo "Starting training with long episodes (800 steps)..."
+        $PYTHON complete_sumo_training.py --episode-duration long
+        ;;
+    "train-extended-ep")
+        echo "Starting training with extended episodes (1200 steps)..."
+        $PYTHON complete_sumo_training.py --episode-duration extended
         ;;
     "train-gui-fast")
         echo "Starting fast GUI training..."

@@ -7,9 +7,10 @@ for controlling traffic lights in the SUMO simulation environment.
 
 import numpy as np
 import random
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Literal
 import pickle
 import os
+import math
 
 
 class SarsaAgent:
@@ -27,9 +28,13 @@ class SarsaAgent:
                  discount_factor: float = 0.95,
                  epsilon: float = 1.0,
                  epsilon_min: float = 0.01,
-                 epsilon_decay: float = 0.995):
+                 epsilon_decay: float = 0.995,
+                 epsilon_decay_strategy: Literal['exponential', 'linear', 'cosine', 'step'] = 'exponential',
+                 total_episodes: int = 1000,
+                 step_episodes: Optional[list] = None,
+                 step_values: Optional[list] = None):
         """
-        Initialize SARSA agent.
+        Initialize SARSA agent with enhanced epsilon decay strategies.
         
         Args:
             state_size: Dimension of state space
@@ -38,7 +43,11 @@ class SarsaAgent:
             discount_factor: Discount factor (gamma)
             epsilon: Initial exploration rate
             epsilon_min: Minimum exploration rate
-            epsilon_decay: Exploration decay rate
+            epsilon_decay: Exploration decay rate (for exponential decay)
+            epsilon_decay_strategy: Strategy for epsilon decay ('exponential', 'linear', 'cosine', 'step')
+            total_episodes: Total number of training episodes (for linear/cosine decay)
+            step_episodes: Episode numbers for step decay [50, 100, 200]
+            step_values: Epsilon values for step decay [0.5, 0.2, 0.05]
         """
         self.state_size = state_size
         self.action_size = action_size
@@ -47,6 +56,22 @@ class SarsaAgent:
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
+        
+        # Enhanced epsilon decay parameters
+        self.epsilon_decay_strategy = epsilon_decay_strategy
+        self.initial_epsilon = epsilon
+        self.total_episodes = total_episodes
+        self.current_episode = 0
+        
+        # Step decay parameters
+        self.step_episodes = step_episodes or [int(total_episodes * 0.25), 
+                                             int(total_episodes * 0.5), 
+                                             int(total_episodes * 0.75)]
+        self.step_values = step_values or [0.5, 0.2, 0.05]
+        
+        # Ensure step_values includes epsilon_min as final value
+        if self.step_values[-1] > self.epsilon_min:
+            self.step_values.append(self.epsilon_min)
         
         # Q-table for storing state-action values
         self.q_table = {}
@@ -198,9 +223,64 @@ class SarsaAgent:
         
         self.total_updates += 1
         
-        # Decay epsilon
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        # Enhanced epsilon decay
+        self._update_epsilon()
+    
+    def _update_epsilon(self):
+        """Update epsilon using the selected decay strategy."""
+        if self.epsilon <= self.epsilon_min:
+            self.epsilon = self.epsilon_min
+            return
+        
+        if self.epsilon_decay_strategy == 'exponential':
+            # Classic exponential decay: ε = ε * decay_rate
+            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+            
+        elif self.epsilon_decay_strategy == 'linear':
+            # Linear decay: ε = ε_initial - (ε_initial - ε_min) * (episode / total_episodes)
+            decay_progress = min(1.0, self.current_episode / self.total_episodes)
+            self.epsilon = self.initial_epsilon - (self.initial_epsilon - self.epsilon_min) * decay_progress
+            
+        elif self.epsilon_decay_strategy == 'cosine':
+            # Cosine annealing: ε = ε_min + 0.5 * (ε_initial - ε_min) * (1 + cos(π * episode / total_episodes))
+            decay_progress = min(1.0, self.current_episode / self.total_episodes)
+            cosine_factor = 0.5 * (1 + math.cos(math.pi * decay_progress))
+            self.epsilon = self.epsilon_min + (self.initial_epsilon - self.epsilon_min) * cosine_factor
+            
+        elif self.epsilon_decay_strategy == 'step':
+            # Step decay: ε drops to specific values at predefined episodes
+            current_step = 0
+            for i, step_episode in enumerate(self.step_episodes):
+                if self.current_episode >= step_episode:
+                    current_step = i + 1
+                else:
+                    break
+            
+            if current_step < len(self.step_values):
+                self.epsilon = max(self.epsilon_min, self.step_values[current_step])
+            else:
+                self.epsilon = self.epsilon_min
+        
+        # Ensure epsilon doesn't go below minimum
+        self.epsilon = max(self.epsilon_min, self.epsilon)
+    
+    def start_episode(self):
+        """Call this at the start of each episode to track episode count for decay."""
+        self.current_episode += 1
+    
+    def get_epsilon_schedule_info(self) -> Dict:
+        """Get information about the current epsilon schedule."""
+        return {
+            'strategy': self.epsilon_decay_strategy,
+            'current_epsilon': self.epsilon,
+            'initial_epsilon': self.initial_epsilon,
+            'epsilon_min': self.epsilon_min,
+            'current_episode': self.current_episode,
+            'total_episodes': self.total_episodes,
+            'decay_progress': min(1.0, self.current_episode / self.total_episodes),
+            'step_episodes': self.step_episodes if self.epsilon_decay_strategy == 'step' else None,
+            'step_values': self.step_values if self.epsilon_decay_strategy == 'step' else None
+        }
     
     def end_episode(self, final_reward: float):
         """
@@ -232,11 +312,17 @@ class SarsaAgent:
             'total_updates': self.total_updates,
             'exploration_count': self.exploration_count,
             'exploitation_count': self.exploitation_count,
+            'current_episode': self.current_episode,
             'hyperparameters': {
                 'learning_rate': self.learning_rate,
                 'discount_factor': self.discount_factor,
                 'epsilon_min': self.epsilon_min,
-                'epsilon_decay': self.epsilon_decay
+                'epsilon_decay': self.epsilon_decay,
+                'epsilon_decay_strategy': self.epsilon_decay_strategy,
+                'initial_epsilon': self.initial_epsilon,
+                'total_episodes': self.total_episodes,
+                'step_episodes': self.step_episodes,
+                'step_values': self.step_values
             }
         }
         
@@ -245,6 +331,9 @@ class SarsaAgent:
             pickle.dump(agent_data, f)
         
         print(f"Agent saved to {filepath}")
+        print(f"Epsilon decay strategy: {self.epsilon_decay_strategy}")
+        print(f"Current epsilon: {self.epsilon:.4f}")
+        print(f"Episode: {self.current_episode}/{self.total_episodes}")
     
     def load(self, filepath: str):
         """Load agent from file."""
@@ -261,11 +350,22 @@ class SarsaAgent:
             self.total_updates = agent_data.get('total_updates', 0)
             self.exploration_count = agent_data.get('exploration_count', 0)
             self.exploitation_count = agent_data.get('exploitation_count', 0)
+            self.current_episode = agent_data.get('current_episode', 0)
+            
+            # Load enhanced epsilon decay parameters if available
+            hyperparams = agent_data.get('hyperparameters', {})
+            self.epsilon_decay_strategy = hyperparams.get('epsilon_decay_strategy', 'exponential')
+            self.initial_epsilon = hyperparams.get('initial_epsilon', self.initial_epsilon)
+            self.total_episodes = hyperparams.get('total_episodes', self.total_episodes)
+            self.step_episodes = hyperparams.get('step_episodes', self.step_episodes)
+            self.step_values = hyperparams.get('step_values', self.step_values)
             
             print(f"Agent loaded from {filepath}")
             print(f"Q-table size: {len(self.q_table)} states")
             print(f"Total updates: {self.total_updates}")
-            print(f"Current epsilon: {self.epsilon:.3f}")
+            print(f"Current epsilon: {self.epsilon:.4f}")
+            print(f"Epsilon strategy: {self.epsilon_decay_strategy}")
+            print(f"Episode: {self.current_episode}/{self.total_episodes}")
             return True
             
         except Exception as e:
@@ -283,6 +383,8 @@ class SarsaAgent:
         for state_actions in self.q_table.values():
             q_values.extend(state_actions.values())
         
+        epsilon_info = self.get_epsilon_schedule_info()
+        
         return {
             'q_table_size': len(self.q_table),
             'total_state_actions': sum(len(sa) for sa in self.q_table.values()),
@@ -293,29 +395,43 @@ class SarsaAgent:
             'exploitation_count': self.exploitation_count,
             'avg_q_value': np.mean(q_values) if q_values else 0,
             'max_q_value': np.max(q_values) if q_values else 0,
-            'min_q_value': np.min(q_values) if q_values else 0
+            'min_q_value': np.min(q_values) if q_values else 0,
+            'epsilon_schedule': epsilon_info
         }
     
     def print_statistics(self):
         """Print agent statistics."""
         stats = self.get_statistics()
         
-        print("\n" + "="*50)
+        print("\n" + "="*60)
         print("SARSA AGENT STATISTICS")
-        print("="*50)
+        print("="*60)
         print(f"Q-table size: {stats['q_table_size']} states")
         print(f"Total state-action pairs: {stats['total_state_actions']}")
         print(f"Total updates: {stats['total_updates']}")
-        print(f"Current epsilon: {stats['current_epsilon']:.3f}")
-        print(f"Exploration rate: {stats['exploration_rate']:.3f}")
         print(f"Actions taken - Explore: {stats['exploration_count']}, "
               f"Exploit: {stats['exploitation_count']}")
+        print(f"Exploration rate: {stats['exploration_rate']:.3f}")
+        
+        # Epsilon schedule information
+        eps_info = stats['epsilon_schedule']
+        print(f"\nEPSILON SCHEDULE ({eps_info['strategy'].upper()}):")
+        print(f"Current ε: {eps_info['current_epsilon']:.4f}")
+        print(f"Initial ε: {eps_info['initial_epsilon']:.4f}")
+        print(f"Minimum ε: {eps_info['epsilon_min']:.4f}")
+        print(f"Episode: {eps_info['current_episode']}/{eps_info['total_episodes']}")
+        print(f"Decay progress: {eps_info['decay_progress']:.1%}")
+        
+        if eps_info['strategy'] == 'step' and eps_info['step_episodes']:
+            print(f"Step episodes: {eps_info['step_episodes']}")
+            print(f"Step values: {[f'{v:.3f}' for v in eps_info['step_values']]}")
         
         if stats['total_state_actions'] > 0:
-            print(f"Q-values - Avg: {stats['avg_q_value']:.2f}, "
-                  f"Max: {stats['max_q_value']:.2f}, "
-                  f"Min: {stats['min_q_value']:.2f}")
-        print("="*50)
+            print(f"\nQ-VALUES:")
+            print(f"Average: {stats['avg_q_value']:.2f}")
+            print(f"Maximum: {stats['max_q_value']:.2f}")
+            print(f"Minimum: {stats['min_q_value']:.2f}")
+        print("="*60)
 
 
 class AdaptiveSarsaAgent(SarsaAgent):

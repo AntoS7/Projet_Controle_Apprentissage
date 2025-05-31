@@ -208,7 +208,7 @@ def create_sumo_config():
     return config_path
 
 
-def train_with_real_sumo(use_gui=False, episodes=30, gui_options=None):
+def train_with_real_sumo(use_gui=False, episodes=30, max_steps_per_episode=600, gui_options=None, adaptive_episodes=False):
     """Train SARSA agent with real SUMO simulation."""
     print("\n" + "="*50)
     print("TRAINING WITH REAL SUMO SIMULATION")
@@ -220,28 +220,35 @@ def train_with_real_sumo(use_gui=False, episodes=30, gui_options=None):
             print(f"   Auto-start: {'ON' if gui_options.get('auto_start', True) else 'OFF'}")
     else:
         print("HEADLESS MODE - Fast training")
+    
+    print(f"Episodes: {episodes}")
+    print(f"Max steps per episode: {max_steps_per_episode}")
+    if adaptive_episodes:
+        print("Adaptive episode extension: ENABLED")
     print("="*50)
     
     try:
         from environment.traffic_env import TrafficEnvironment
         
-        # Create environment with enhanced GUI options
+        # Create environment
         env = TrafficEnvironment(
             sumo_cfg_file="config/simulation.sumocfg",
             use_gui=use_gui,
-            max_steps=400,
-            keep_sumo_alive=use_gui  # Keep SUMO alive between episodes in GUI mode
+            max_steps=max_steps_per_episode,
+            keep_sumo_alive=use_gui
         )
         
-        # Create SARSA agent  
+        # Create SARSA agent
         agent = SarsaAgent(
             state_size=27,
             action_size=4,
             learning_rate=0.1,
             discount_factor=0.95,
-            epsilon=0.7,
+            epsilon=1.0,
             epsilon_min=0.01,
-            epsilon_decay=0.995
+            epsilon_decay=0.995,
+            epsilon_decay_strategy='exponential',
+            total_episodes=episodes
         )
         
         print(f"Starting SUMO training for {episodes} episodes...")
@@ -261,6 +268,9 @@ def train_with_real_sumo(use_gui=False, episodes=30, gui_options=None):
             episode_start_time = time.time()
             print(f"Episode {episode + 1}/{episodes}")
             
+            # Track episode for enhanced epsilon decay
+            agent.start_episode()
+            
             state, info = env.reset()
             total_reward = 0
             total_queues = 0
@@ -276,8 +286,8 @@ def train_with_real_sumo(use_gui=False, episodes=30, gui_options=None):
                 steps += 1
                 
                 # Track queues
-                if 'avg_queue_length' in info:
-                    total_queues += info['avg_queue_length']
+                if 'total_queues' in info:
+                    total_queues += info['total_queues']
                 
                 # Enhanced GUI visualization controls
                 if use_gui:
@@ -285,7 +295,7 @@ def train_with_real_sumo(use_gui=False, episodes=30, gui_options=None):
                     
                     # Step-by-step mode
                     if gui_options and gui_options.get('step_mode') and steps % gui_options.get('pause_freq', 50) == 0:
-                        print(f"     Step {steps}: Reward={reward:.1f}, Queue={info.get('avg_queue_length', 0):.1f}")
+                        print(f"     Step {steps}: Reward={reward:.1f}, Queue={info.get('total_queues', 0):.1f}")
                         print("     Press Enter to continue...")
                         input()
                     elif steps % 5 == 0:  # Regular slow down
@@ -306,10 +316,34 @@ def train_with_real_sumo(use_gui=False, episodes=30, gui_options=None):
             rewards_history.append(total_reward)
             queues_history.append(avg_queue)
             
-            # Enhanced episode summary for GUI
+            # Episode summary
             episode_time = time.time() - episode_start_time
+            
             print(f"  Reward: {total_reward:.1f}, Avg Queue: {avg_queue:.1f}, "
                   f"Steps: {steps}, Epsilon: {agent.epsilon:.3f}, Time: {episode_time:.1f}s")
+            
+            # Adaptive episode extension logic
+            if adaptive_episodes and episode >= 10:  # Start checking after 10 episodes
+                recent_rewards = rewards_history[-5:] if len(rewards_history) >= 5 else rewards_history
+                if len(recent_rewards) >= 3:
+                    # Check if agent is showing good learning progress
+                    recent_improvement = recent_rewards[-1] - recent_rewards[0]
+                    avg_recent_reward = np.mean(recent_rewards)
+                    
+                    # Extend training if showing good progress and not too many episodes yet
+                    if (recent_improvement > 50 and avg_recent_reward > -1500 and 
+                        episodes < 500 and episode == episodes - 1):
+                        extension = min(50, max(10, int(episodes * 0.2)))  # Extend by 10-50 episodes
+                        episodes += extension
+                        print(f"  🚀 ADAPTIVE EXTENSION: Adding {extension} episodes due to good learning progress!")
+                        print(f"     New total episodes: {episodes}")
+                        print(f"     Recent improvement: {recent_improvement:.1f}")
+            
+            # Show progress every 5 episodes
+            if episode % 5 == 0 or episode == episodes - 1:
+                recent_avg = np.mean(rewards_history[-5:]) if len(rewards_history) >= 5 else np.mean(rewards_history)
+                improvement = rewards_history[-1] - rewards_history[0] if len(rewards_history) > 1 else 0
+                print(f"  Recent avg: {recent_avg:.1f}, Total improvement: {improvement:.1f}")
             
             # GUI performance tracking
             if use_gui:
@@ -402,10 +436,24 @@ def main():
     parser = argparse.ArgumentParser(description='Complete SUMO SARSA Training')
     parser.add_argument('--gui', action='store_true', 
                        help='Enable SUMO GUI for visual simulation')
-    parser.add_argument('--episodes', type=int, default=30,
-                       help='Number of training episodes (default: 30)')
+    parser.add_argument('--episodes', type=int, default=50,
+                       help='Number of training episodes (default: 50, extended for better learning)')
     parser.add_argument('--fast', action='store_true',
-                       help='Fast mode with fewer episodes (10)')
+                       help='Fast mode with fewer episodes (20)')
+    parser.add_argument('--extended', action='store_true',
+                       help='Extended training mode (150 episodes)')
+    parser.add_argument('--long', action='store_true',
+                       help='Long training mode (300 episodes for deep learning)')
+    parser.add_argument('--ultra', action='store_true',
+                       help='Ultra-long training mode (500 episodes for comprehensive learning)')
+    parser.add_argument('--marathon', action='store_true',
+                       help='Marathon training mode (1000 episodes for maximum performance)')
+    parser.add_argument('--max-steps', type=int, default=600,
+                       help='Maximum steps per episode (default: 600, longer episodes for better learning)')
+    parser.add_argument('--episode-duration', choices=['short', 'normal', 'long', 'extended'], default='normal',
+                       help='Episode duration preset: short(400), normal(600), long(800), extended(1200)')
+    parser.add_argument('--adaptive-episodes', action='store_true',
+                       help='Enable adaptive episode extension based on learning progress')
     # Enhanced GUI options
     parser.add_argument('--gui-speed', type=float, default=1.0,
                        help='GUI simulation speed multiplier (0.1=slow, 2.0=fast)')
@@ -418,14 +466,45 @@ def main():
     
     args = parser.parse_args()
     
-    # Adjust episodes for fast mode
+    # Adjust episodes for different training modes
     if args.fast:
-        episodes = 10
-        print("FAST MODE: Running 10 episodes")
+        episodes = 20
+        print("FAST MODE: Running 20 episodes")
+    elif args.extended:
+        episodes = 150
+        print("EXTENDED MODE: Running 150 episodes for enhanced learning")
+    elif args.long:
+        episodes = 300
+        print("LONG MODE: Running 300 episodes for deep reinforcement learning")
+    elif args.ultra:
+        episodes = 500
+        print("ULTRA MODE: Running 500 episodes for comprehensive learning")
+    elif args.marathon:
+        episodes = 1000
+        print("MARATHON MODE: Running 1000 episodes for maximum performance")
     else:
         episodes = args.episodes
     
+    # Determine episode duration (max steps per episode)
+    episode_duration_presets = {
+        'short': 400,
+        'normal': 600,
+        'long': 800,
+        'extended': 1200
+    }
+    max_steps_per_episode = episode_duration_presets.get(args.episode_duration, args.max_steps)
+    
+    # Adaptive episode extension
+    adaptive_extension_enabled = args.adaptive_episodes
+    
     print("COMPLETE SUMO SETUP AND SARSA TRAINING")
+    print("="*60)
+    print(f"Training Configuration:")
+    print(f"  Episodes: {episodes}")
+    print(f"  Steps per episode: {max_steps_per_episode}")
+    print(f"  Episode duration preset: {args.episode_duration}")
+    if adaptive_extension_enabled:
+        print(f"  Adaptive episode extension: ENABLED")
     print("="*60)
     
     if args.gui:
@@ -474,7 +553,9 @@ def main():
         agent, rewards, queues = train_with_real_sumo(
             use_gui=args.gui, 
             episodes=episodes,
-            gui_options=gui_options
+            max_steps_per_episode=max_steps_per_episode,
+            gui_options=gui_options,
+            adaptive_episodes=adaptive_extension_enabled
         )
         
         if agent is not None:

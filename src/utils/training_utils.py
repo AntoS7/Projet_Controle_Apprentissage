@@ -20,6 +20,7 @@ if 'src' not in sys.path:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from environment.sarsa_agent import SarsaAgent, AdaptiveSarsaAgent
+from environment.enhanced_sarsa_agent import EnhancedSarsaAgent
 from environment.traffic_env import TrafficEnvironment
 
 
@@ -94,24 +95,42 @@ class TrainingSetupManager:
             raise
     
     def create_agent(self, agent_type: str, state_size: int = 27, action_size: int = 4,
-                    learning_rate: float = 0.1, epsilon: float = 0.8) -> SarsaAgent:
-        """Create and return SARSA agent."""
-        if agent_type.lower() == "adaptive":
+                    learning_rate: float = 0.1, epsilon: float = 0.8, 
+                    total_episodes: int = 100, epsilon_decay_strategy: str = 'exponential') -> SarsaAgent:
+        """Create and return SARSA agent with enhanced epsilon decay."""
+        if agent_type.lower() == "enhanced":
+            agent = EnhancedSarsaAgent(
+                state_size=state_size,
+                action_size=action_size,
+                learning_rate=learning_rate,
+                epsilon=epsilon,
+                total_episodes=total_episodes,
+                epsilon_decay_strategy=epsilon_decay_strategy,
+                use_double_sarsa=True,
+                use_replay_buffer=True,
+                adaptive_lr=True
+            )
+            print(f"Enhanced SARSA agent created with {epsilon_decay_strategy} epsilon decay")
+        elif agent_type.lower() == "adaptive":
             agent = AdaptiveSarsaAgent(
                 state_size=state_size,
                 action_size=action_size,
                 learning_rate=learning_rate,
-                epsilon=epsilon
+                epsilon=epsilon,
+                total_episodes=total_episodes,
+                epsilon_decay_strategy=epsilon_decay_strategy
             )
-            print("Adaptive SARSA agent created")
+            print(f"Adaptive SARSA agent created with {epsilon_decay_strategy} epsilon decay")
         else:
             agent = SarsaAgent(
                 state_size=state_size,
                 action_size=action_size,
                 learning_rate=learning_rate,
-                epsilon=epsilon
+                epsilon=epsilon,
+                total_episodes=total_episodes,
+                epsilon_decay_strategy=epsilon_decay_strategy
             )
-            print("Standard SARSA agent created")
+            print(f"Standard SARSA agent created with {epsilon_decay_strategy} epsilon decay")
         
         return agent
 
@@ -176,6 +195,9 @@ class TrainingExecutor:
                 if use_gui and episode > 0:
                     input(f"\nPress Enter to start Episode {episode + 1}/{episodes}...")
                 
+                # Track episode for enhanced epsilon decay
+                agent.start_episode()
+                
                 # Run episode
                 reward, queue, steps = self.run_training_episode(
                     agent, env, episode + 1, max_steps
@@ -190,11 +212,9 @@ class TrainingExecutor:
                     avg_queue = np.mean(queues[-5:]) if len(queues) >= 5 else np.mean(queues)
                     print(f"Episode {episode + 1:3d}: Reward={reward:6.1f}, "
                           f"Queue={queue:4.1f}, Steps={steps:3d}, "
-                          f"Avg(5)={avg_reward:6.1f}, ε={agent.epsilon:.3f}")
+                          f"Avg(5)={avg_reward:6.1f}, ε={agent.epsilon:.4f}")
                 
-                # Decay epsilon for exploration
-                if hasattr(agent, 'decay_epsilon'):
-                    agent.decay_epsilon()
+                # Enhanced epsilon decay is now handled automatically in agent.update()
                 
         except KeyboardInterrupt:
             print("\nTraining interrupted by user")
